@@ -1,0 +1,2 @@
+core_cm3.h:1876:26:ITM_SendChar	16	static,ignoring_inline_asm
+debug.c:18:5:_write	32	static
