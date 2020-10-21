@@ -79,6 +79,9 @@ uint32_t RTC_Init(void)
     RTC->PRLH |= (prescaler >> 16U);
     RTC->PRLL |= (prescaler & 0x0000ffff);
 
+    RTC->CNTH = 0;
+    RTC->CNTL = 0;
+
     BKP->DR1 = RCT_MAGIC_WORD;
 
     /* Wait for synchro */
@@ -94,8 +97,7 @@ uint32_t RTC_Init(void)
     }
 
 
-    RTC->CNTH = 0;
-    RTC->CNTL = 0;
+
 
     return 0;
 

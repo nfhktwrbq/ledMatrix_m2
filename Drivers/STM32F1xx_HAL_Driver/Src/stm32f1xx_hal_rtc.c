@@ -330,8 +330,6 @@ HAL_StatusTypeDef HAL_RTC_Init(RTC_HandleTypeDef *hrtc)
     return HAL_ERROR;
   }
 
-
-
   /* Set Initialization mode */
   if (RTC_EnterInitMode(hrtc) != HAL_OK)
   {

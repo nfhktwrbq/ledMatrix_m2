@@ -26,6 +26,7 @@
 /* USER CODE BEGIN Includes */
 #include "rtc.h"
 #include "debug.h"
+#include "si4432.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -67,9 +68,17 @@ const osThreadAttr_t defaultTask_attributes = {
 osThreadId_t testThreadHandle;
 const osThreadAttr_t testThread_attributes = {
   .name = "testThread",
-  .priority = (osPriority_t) osPriorityRealtime,
+  .priority = (osPriority_t) osPriorityNormal,
+  .stack_size = 32 * 4
+};
+
+osThreadId_t radioThreadHandle;
+const osThreadAttr_t radioThread_attributes = {
+  .name = "radioThread",
+  .priority = (osPriority_t) osPriorityNormal,
   .stack_size = 128 * 4
 };
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -87,6 +96,7 @@ void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 void StartTestTask(void *argument);
+void StartRadioTask(void *argument);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -126,12 +136,15 @@ int main(void)
   MX_ADC1_Init();
   MX_I2C1_Init();
   MX_I2C2_Init();
-  RTC_Init();
+  //MX_RTC_Init();
   MX_SPI1_Init();
   MX_SPI2_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+  RTC_Init();
+  si4432_reset();
+  si4432_init_RX_AN415();
   _DEBUG_PRINT_MAIN("time22\n");
   /* USER CODE END 2 */
 
@@ -161,6 +174,7 @@ int main(void)
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   testThreadHandle = osThreadNew(StartTestTask, NULL, &testThread_attributes);
+  radioThreadHandle = osThreadNew(StartRadioTask, NULL, &radioThread_attributes);
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -359,7 +373,7 @@ static void MX_RTC_Init(void)
   */
   hrtc.Instance = RTC;
   hrtc.Init.AsynchPrediv = RTC_AUTO_1_SECOND;
-  hrtc.Init.OutPut = RTC_OUTPUTSOURCE_NONE;
+  hrtc.Init.OutPut = RTC_OUTPUTSOURCE_ALARM;
   if (HAL_RTC_Init(&hrtc) != HAL_OK)
   {
     Error_Handler();
@@ -419,7 +433,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_HARD_OUTPUT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -573,10 +587,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(SPI1_CS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : BME_POWER_KEY_Pin BUTTON_DOWN_Pin BUTTON_UP_Pin BUTTON_LEFT_Pin 
-                           BUTTON_RIGHT_Pin */
-  GPIO_InitStruct.Pin = BME_POWER_KEY_Pin|BUTTON_DOWN_Pin|BUTTON_UP_Pin|BUTTON_LEFT_Pin 
-                          |BUTTON_RIGHT_Pin;
+  /*Configure GPIO pins : BME_POWER_KEY_Pin PB14 BUTTON_DOWN_Pin BUTTON_UP_Pin 
+                           BUTTON_LEFT_Pin BUTTON_RIGHT_Pin */
+  GPIO_InitStruct.Pin = BME_POWER_KEY_Pin|GPIO_PIN_14|BUTTON_DOWN_Pin|BUTTON_UP_Pin 
+                          |BUTTON_LEFT_Pin|BUTTON_RIGHT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
@@ -586,27 +600,40 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(BUTTON_ENTER_GPIO_Port, &GPIO_InitStruct);
+
 }
 
 /* USER CODE BEGIN 4 */
 void StartTestTask(void *argument)
 {
-  /* USER CODE BEGIN 5 */
-  /* Infinite loop */
   for(;;)
   {
     osDelay(1000);
     HAL_GPIO_TogglePin(TEST_PIN_GPIO_Port, TEST_PIN_Pin);
-    _DEBUG_PRINT_MAIN("time %lu\n", RTC->CNTL);
-    //HAL_GPIO_TogglePin(TEST_PIN_GPIO_Port, TEST_PIN_Pin);
-    //HAL_GPIO_TogglePin(TEST_PIN_GPIO_Port, TEST_PIN_Pin);
-    //HAL_GPIO_TogglePin(TEST_PIN_GPIO_Port, TEST_PIN_Pin);
-//    HAL_GPIO_WritePin(TEST_PIN_GPIO_Port, TEST_PIN_Pin, GPIO_PIN_RESET);
-//    osDelay(1000);
-//    HAL_GPIO_WritePin(TEST_PIN_GPIO_Port, TEST_PIN_Pin, GPIO_PIN_SET);
+    //_DEBUG_PRINT_MAIN("time %lu\n", RTC->CNTL);
 
   }
-  /* USER CODE END 5 */
+}
+
+void StartRadioTask(void *argument)
+{
+	uint8_t buf[16];
+	uint8_t len = 0;
+	for(;;)
+	{
+		if(si4432_receive_AN415(buf, &len))
+		{
+			_DEBUG_PRINT_MAIN("PL = %u\n", len);
+			for(int i = 0; i < sizeof(buf); i++)
+			{
+				_DEBUG_PRINT_MAIN("%u\n", buf[i]);
+			}
+			_DEBUG_PRINT_MAIN("\n");
+		}
+		osDelay(1);
+		//_DEBUG_PRINT_MAIN("V=%u\n", si4432_get_battery_voltage());
+		//_DEBUG_PRINT_MAIN("radio\n");
+	}
 }
 /* USER CODE END 4 */
 
@@ -623,9 +650,12 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    //osDelay(1000);
-	 // HAL_Delay(1000);
-   // HAL_GPIO_TogglePin(TEST_PIN_GPIO_Port, TEST_PIN_Pin);
+    osDelay(1000);
+    //HAL_GPIO_TogglePin(TEST_PIN_GPIO_Port, TEST_PIN_Pin);
+    //_DEBUG_PRINT_MAIN("time %lu\n", RTC->CNTL);
+    //HAL_GPIO_TogglePin(TEST_PIN_GPIO_Port, TEST_PIN_Pin);
+    //HAL_GPIO_TogglePin(TEST_PIN_GPIO_Port, TEST_PIN_Pin);
+    //HAL_GPIO_TogglePin(TEST_PIN_GPIO_Port, TEST_PIN_Pin);
 //    HAL_GPIO_WritePin(TEST_PIN_GPIO_Port, TEST_PIN_Pin, GPIO_PIN_RESET);
 //    osDelay(1000);
 //    HAL_GPIO_WritePin(TEST_PIN_GPIO_Port, TEST_PIN_Pin, GPIO_PIN_SET);
