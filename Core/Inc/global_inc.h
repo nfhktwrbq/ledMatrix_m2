@@ -13,5 +13,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "stm32f1xx_hal.h"
+#include "main.h"
 
 #endif /* INC_GLOBAL_INC_H_ */

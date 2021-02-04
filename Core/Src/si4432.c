@@ -185,7 +185,6 @@ void si4432_init_RX_AN415(void){
 bool si4432_receive_AN415(uint8_t * buf, uint8_t * len){
 	uint8_t length = 0;
 	uint8_t temp8 = 0;
-	uint8_t pointer = 0;
 
 	if(si4432_get_irq_pin() == GPIO_PIN_RESET)
 	{
@@ -231,8 +230,6 @@ bool si4432_receive_AN415(uint8_t * buf, uint8_t * len){
 
 			*len = length;
 
-			//clear receive buffer pointer
-			pointer = 0;
 
 			//reset the RX FIFO
 			si4432_write_register(Operating_Function_Control2, 0x02);
